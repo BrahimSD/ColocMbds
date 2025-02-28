@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "ColocMbds",
+    "slug": "ColocMbds",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/LogoApp.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/LogoApp.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/LogoApp.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/LogoApp.png"
+    }
+  }
+}
