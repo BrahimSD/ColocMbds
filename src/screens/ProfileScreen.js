@@ -10,9 +10,10 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  SafeAreaView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { getAuth } from "firebase/auth";
+import { getAuth, updateProfile } from "firebase/auth";
 import { useAuth } from "../contexts/AuthContext";
 import {
   doc,
@@ -21,7 +22,9 @@ import {
   setDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../config/firebase";
+import commonStyles from '../styles/commonStyles';
 
 export default function ProfileScreen({ navigation }) {
   const { user } = useAuth();
@@ -65,10 +68,9 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleImagePick = async (type) => {
+  const handleImagePick = async (imageType) => {
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permission refusée",
@@ -80,52 +82,91 @@ export default function ProfileScreen({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: type === "profile" ? [1, 1] : [3, 2],
+        aspect: imageType === "profile" ? [1, 1] : [3, 2],
         quality: 0.8,
       });
 
       if (!result.canceled) {
         setIsLoading(true);
-        const formData = new FormData();
-        formData.append("file", {
-          uri: result.assets[0].uri,
-          type: "image/jpeg",
-          name: "upload.jpg",
-        });
-        formData.append(
-          "upload_preset",
-          process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET
-        );
-
-        const response = await fetch(process.env.EXPO_PUBLIC_CLOUDINARY_URL, {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await response.json();
-        if (!data.secure_url) {
-          throw new Error("Échec du téléchargement de l'image");
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          throw new Error("Utilisateur non connecté");
         }
 
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        if (type === "profile") {
-          await updateDoc(userRef, {
-            photoURL: data.secure_url,
-            updatedAt: serverTimestamp(),
+        try {
+          // Préparer le fichier pour l'upload
+          const filename = result.assets[0].uri.split("/").pop();
+          const match = /\.(\w+)$/.exec(filename);
+          const mimeType = match ? `image/${match[1]}` : "image";
+
+          const formData = new FormData();
+          formData.append("file", {
+            uri: result.assets[0].uri,
+            type: mimeType,
+            name: filename,
           });
-          setProfile((prev) => ({ ...prev, photoURL: data.secure_url }));
-        } else {
-          await updateDoc(userRef, {
-            studentCardURL: data.secure_url,
-            status: "pending",
-            updatedAt: serverTimestamp(),
-          });
-          setProfile((prev) => ({ ...prev, studentCard: data.secure_url }));
+          formData.append("upload_preset", process.env.EXPO_PUBLIC_APP_CLOUDINARY_UPLOAD_PRESET);
+          formData.append("api_key", process.env.EXPO_PUBLIC_APP_CLOUDINARY_API_KEY);
+
+          // Upload vers Cloudinary
+          const response = await fetch(
+            process.env.EXPO_PUBLIC_APP_CLOUDINARY_URL,
+            {
+              method: "POST",
+              body: formData,
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Cloudinary error:", errorData);
+            throw new Error(errorData.error?.message || "Erreur lors du téléchargement de la photo");
+          }
+
+          const data = await response.json();
+          if (!data.secure_url) {
+            throw new Error("URL de la photo non reçue");
+          }
+
+          // Mettre à jour le document utilisateur dans Firestore
+          const userRef = doc(db, "users", currentUser.uid);
+          if (imageType === "profile") {
+            // Mettre à jour la photo de profil dans Firebase Auth
+            await updateProfile(currentUser, {
+              photoURL: data.secure_url
+            });
+
+            // Mettre à jour Firestore
+            await updateDoc(userRef, {
+              photoURL: data.secure_url,
+              updatedAt: serverTimestamp(),
+            });
+            setProfile((prev) => ({ ...prev, photoURL: data.secure_url }));
+            Alert.alert("Succès", "Photo de profil mise à jour avec succès");
+          } else {
+            await updateDoc(userRef, {
+              studentCardURL: data.secure_url,
+              status: "pending",
+              updatedAt: serverTimestamp(),
+            });
+            setProfile((prev) => ({ ...prev, studentCard: data.secure_url }));
+            Alert.alert("Succès", "Carte étudiante mise à jour avec succès");
+          }
+        } catch (uploadError) {
+          console.error('Upload error details:', uploadError);
+          throw new Error(`Erreur lors de l'upload: ${uploadError.message}`);
         }
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert("Erreur", "Échec du téléchargement de l'image");
+      Alert.alert(
+        "Erreur",
+        `Échec du téléchargement de l'image: ${error.message}`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -177,126 +218,129 @@ export default function ProfileScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={commonStyles.safeArea}>
+      <View style={commonStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate("Home")}
+          style={commonStyles.backButton}
+          onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={commonStyles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mon Profil</Text>
-        <View style={styles.placeholder}></View>
+        <Text style={commonStyles.headerTitle}>Mon Profil</Text>
+        <View style={commonStyles.placeholder} />
       </View>
-      <View style={styles.profileContainer}>
-        <View style={styles.photoSection}>
-          <Image
-            source={
-              profile.photoURL
-                ? { uri: profile.photoURL }
-                : require("../../assets/default-avatar.png")
-            }
-            style={styles.profilePhoto}
-          />
-          <TouchableOpacity
-            style={styles.uploadButton}
-            onPress={() => handleImagePick("profile")}
-          >
-            <Text style={styles.uploadButtonText}>Changer la photo</Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Budget (€/mois)</Text>
-          <TextInput
-            style={styles.input}
-            value={profile.budget.toString()}
-            onChangeText={(text) =>
-              setProfile((prev) => ({ ...prev, budget: text }))
-            }
-            keyboardType="numeric"
-            placeholder="Votre budget mensuel"
-          />
-        </View>
+      <ScrollView style={styles.container}>
+        <View style={styles.profileContainer}>
+          <View style={styles.photoSection}>
+            <Image
+              source={
+                profile.photoURL
+                  ? { uri: profile.photoURL }
+                  : require("../../assets/default-avatar.png")
+              }
+              style={styles.profilePhoto}
+            />
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => handleImagePick("profile")}
+            >
+              <Text style={styles.uploadButtonText}>Changer la photo</Text>
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Localisation préférée</Text>
-          <TextInput
-            style={styles.input}
-            value={profile.location}
-            onChangeText={(text) =>
-              setProfile((prev) => ({ ...prev, location: text }))
-            }
-            placeholder="Ville, quartier..."
-          />
-        </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Budget (€/mois)</Text>
+            <TextInput
+              style={styles.input}
+              value={profile.budget.toString()}
+              onChangeText={(text) =>
+                setProfile((prev) => ({ ...prev, budget: text }))
+              }
+              keyboardType="numeric"
+              placeholder="Votre budget mensuel"
+            />
+          </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Type de logement</Text>
-          <TextInput
-            style={styles.input}
-            value={profile.housingType}
-            onChangeText={(text) =>
-              setProfile((prev) => ({ ...prev, housingType: text }))
-            }
-            placeholder="Appartement, maison..."
-          />
-        </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Localisation préférée</Text>
+            <TextInput
+              style={styles.input}
+              value={profile.location}
+              onChangeText={(text) =>
+                setProfile((prev) => ({ ...prev, location: text }))
+              }
+              placeholder="Ville, quartier..."
+            />
+          </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>À propos de vous</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={profile.description}
-            onChangeText={(text) =>
-              setProfile((prev) => ({ ...prev, description: text }))
-            }
-            placeholder="Décrivez-vous, vos hobbies..."
-            multiline
-            numberOfLines={4}
-          />
-        </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Type de logement</Text>
+            <TextInput
+              style={styles.input}
+              value={profile.housingType}
+              onChangeText={(text) =>
+                setProfile((prev) => ({ ...prev, housingType: text }))
+              }
+              placeholder="Appartement, maison..."
+            />
+          </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Carte Étudiante</Text>
-          {profile.studentCard ? (
-            <View style={styles.studentCardPreview}>
-              <Image
-                source={{ uri: profile.studentCard }}
-                style={styles.studentCardImage}
-              />
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>À propos de vous</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={profile.description}
+              onChangeText={(text) =>
+                setProfile((prev) => ({ ...prev, description: text }))
+              }
+              placeholder="Décrivez-vous, vos hobbies..."
+              multiline
+              numberOfLines={4}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Carte Étudiante</Text>
+            {profile.studentCard ? (
+              <View style={styles.studentCardPreview}>
+                <Image
+                  source={{ uri: profile.studentCard }}
+                  style={styles.studentCardImage}
+                />
+                <TouchableOpacity
+                  style={styles.uploadButton}
+                  onPress={() => handleImagePick("studentCard")}
+                >
+                  <Text style={styles.uploadButtonText}>Changer la carte</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
               <TouchableOpacity
                 style={styles.uploadButton}
                 onPress={() => handleImagePick("studentCard")}
               >
-                <Text style={styles.uploadButtonText}>Changer la carte</Text>
+                <Text style={styles.uploadButtonText}>
+                  Télécharger la carte étudiante
+                </Text>
               </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.uploadButton}
-              onPress={() => handleImagePick("studentCard")}
-            >
-              <Text style={styles.uploadButtonText}>
-                Télécharger la carte étudiante
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            )}
+          </View>
 
-        <TouchableOpacity
-          style={styles.submitButton}
-          onPress={handleSubmit}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitButtonText}>Enregistrer le profil</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitButtonText}>Enregistrer le profil</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -304,43 +348,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  backButton: {
-    padding: 5,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: "#4C86F9",
-    fontWeight: "bold",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  placeholder: {
-    width: 20,
-  },
-  cancelButton: {
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: "#4C86F9",
-  },
-  cancelButtonText: {
-    color: "#4C86F9",
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "bold",
   },
   profileContainer: {
     padding: 20,

@@ -1,82 +1,84 @@
 import React from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput,
-  KeyboardAvoidingView,
-  Platform
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 
 const HousingStep = ({ formData, setFormData }) => {
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <Text style={styles.stepDescription}>Détails du logement</Text>
+  const handleChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-      <View style={styles.formGroup}>
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Détails du Logement</Text>
+      
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Nombre total de colocataires *</Text>
         <TextInput
           style={styles.input}
           value={formData.totalRoommates}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, totalRoommates: text }))}
-          placeholder="2"
+          onChangeText={(value) => handleChange('totalRoommates', value)}
+          placeholder="Ex: 3"
           keyboardType="numeric"
+          placeholderTextColor="#999"
         />
       </View>
 
-      <View style={styles.formGroup}>
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Nombre de salles de bain *</Text>
         <TextInput
           style={styles.input}
           value={formData.bathrooms}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, bathrooms: text }))}
-          placeholder="1"
+          onChangeText={(value) => handleChange('bathrooms', value)}
+          placeholder="Ex: 2"
           keyboardType="numeric"
+          placeholderTextColor="#999"
         />
       </View>
 
-      <View style={styles.formGroup}>
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Surface privée (m²) *</Text>
         <TextInput
           style={styles.input}
           value={formData.privateArea}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, privateArea: text }))}
-          placeholder="15"
+          onChangeText={(value) => handleChange('privateArea', value)}
+          placeholder="Ex: 15"
           keyboardType="numeric"
+          placeholderTextColor="#999"
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 20,
   },
-  stepDescription: {
-    fontSize: 16,
-    color: '#666',
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2A265F',
     marginBottom: 20,
   },
-  formGroup: {
+  inputGroup: {
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
+    color: '#333',
     marginBottom: 8,
     fontWeight: '500',
   },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  }
+    backgroundColor: '#fff',
+  },
 });
 
 export default HousingStep;

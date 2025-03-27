@@ -1,90 +1,63 @@
 import React, { useState } from 'react';
 import {
-  Platform,
-  StyleSheet,
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
   Image,
   ScrollView,
-  ActivityIndicator,
-  Alert
 } from 'react-native';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import commonStyles from '../styles/commonStyles';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
-  
-    setIsLoading(true);
-  
+
     try {
-      const auth = getAuth();
+      setLoading(true);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-  
-      const serverUrl = Platform.OS === 'web' 
-        ? "http://localhost:5000" 
-        : "http://192.168.1.44:5000"; 
-      
-      try {
-        const token = await user.getIdToken();
-        const response = await fetch(`${serverUrl}/api/auth/check-status`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
-        const data = await response.json();
-  
-        if (!response.ok) {
-          if (data.code === "account-blocked") {
-            await auth.signOut();
-            throw new Error("Votre compte a été bloqué. Veuillez contacter l'administrateur.");
-          }
-          throw new Error(data.error || "Erreur de connexion");
-        }
-      } catch (networkError) {
-        console.error("Network error:", networkError);
-        console.log("Continuing despite network error");
-      }
-  
-      try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.isAdmin) {
-            navigation.replace('Admin');
-            return;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking admin status:", error);
-      }
-  
+      console.log('User logged in:', userCredential.user.uid);
+      // Redirection vers la page Home après connexion réussie
       navigation.replace('Home');
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Erreur', error.message);
-  
-      if (error.message.includes('bloqué')) {
-        const auth = getAuth();
-        await auth.signOut();
+      let errorMessage = 'Une erreur est survenue lors de la connexion';
+      
+      switch (error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Email invalide';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Ce compte a été désactivé';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Aucun compte trouvé avec cet email';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Mot de passe incorrect';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Email ou mot de passe incorrect';
+          break;
+        default:
+          errorMessage = error.message;
       }
+      
+      Alert.alert('Erreur', errorMessage);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -97,46 +70,59 @@ export default function LoginScreen({ navigation }) {
           resizeMode="contain"
         />
         
-        <Text style={styles.title}>Bienvenue</Text>
-        <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Bienvenue</Text>
+          <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        <View style={styles.form}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Votre email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+          </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Mot de passe"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Mot de passe</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Votre mot de passe"
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+          </View>
 
-        <TouchableOpacity 
-          style={styles.loginButton}
-          onPress={handleLogin}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.loginButtonText}>Se connecter</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Se connecter</Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.signUpButton}
-          onPress={() => navigation.navigate('SignUp')}
-        >
-          <Text style={styles.signUpButtonText}>
-            Pas encore de compte ? S'inscrire
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => navigation.navigate('Register')}
+          >
+            <Text style={styles.linkText}>
+              Pas encore de compte ? S'inscrire
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -146,7 +132,6 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     backgroundColor: '#fff',
-    padding: 20,
   },
   formContainer: {
     flex: 1,
@@ -159,48 +144,61 @@ const styles = StyleSheet.create({
     height: 150,
     marginBottom: 30,
   },
+  header: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
     color: '#333',
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 30,
+  },
+  form: {
+    width: '100%',
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    marginBottom: 8,
+    color: '#333',
   },
   input: {
-    width: '100%',
-    height: 50,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
+    padding: 12,
     fontSize: 16,
     backgroundColor: '#f8f8f8',
   },
-  loginButton: {
-    width: '100%',
-    height: 50,
+  button: {
     backgroundColor: '#4C86F9',
+    padding: 15,
     borderRadius: 8,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 15,
+    marginTop: 20,
   },
-  loginButtonText: {
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  signUpButton: {
+  linkButton: {
     marginTop: 20,
-    padding: 10,
+    alignItems: 'center',
   },
-  signUpButtonText: {
+  linkText: {
     color: '#4C86F9',
     fontSize: 16,
-  }
+  },
 });

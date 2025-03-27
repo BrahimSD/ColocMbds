@@ -25,6 +25,21 @@
     },
     "web": {
       "favicon": "./assets/LogoApp.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application nécessite l'accès à vos photos pour télécharger des images de votre bien."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "L'application nécessite l'accès à votre localisation pour trouver votre bien."
+        }
+      ]
+    ],
+    "newArchEnabled": true
   }
 }

@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import commonStyles from '../styles/commonStyles';
 
 export default function MyListingsScreen({ navigation }) {
   const { user } = useAuth();
@@ -168,15 +169,15 @@ export default function MyListingsScreen({ navigation }) {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.messageContainer}>
-          <Text style={styles.messageTitle}>Connexion requise</Text>
-          <Text style={styles.messageText}>Veuillez vous connecter pour voir vos annonces</Text>
+      <SafeAreaView style={commonStyles.safeArea}>
+        <View style={commonStyles.messageContainer}>
+          <Text style={commonStyles.messageTitle}>Connexion requise</Text>
+          <Text style={commonStyles.messageText}>Veuillez vous connecter pour voir vos annonces</Text>
           <TouchableOpacity
-            style={styles.loginButton}
+            style={commonStyles.loginButton}
             onPress={() => navigation.navigate('Login')}
           >
-            <Text style={styles.loginButtonText}>Se connecter</Text>
+            <Text style={commonStyles.loginButtonText}>Se connecter</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -184,16 +185,16 @@ export default function MyListingsScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={commonStyles.safeArea}>
+      <View style={commonStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={commonStyles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={commonStyles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes Annonces</Text>
-        <View style={styles.placeholder}></View>
+        <Text style={commonStyles.headerTitle}>Mes Annonces</Text>
+        <View style={commonStyles.placeholder} />
       </View>
 
       {loading ? (
@@ -202,12 +203,12 @@ export default function MyListingsScreen({ navigation }) {
         </View>
       ) : listings.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Vous n'avez pas encore créé d'annonces.</Text>
+          <Text style={styles.emptyText}>Vous n'avez pas encore d'annonces</Text>
           <TouchableOpacity
             style={styles.createButton}
             onPress={() => navigation.navigate('CreateListing')}
           >
-            <Text style={styles.createButtonText}>Créer votre première annonce</Text>
+            <Text style={styles.createButtonText}>Créer une annonce</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -222,7 +223,7 @@ export default function MyListingsScreen({ navigation }) {
           <FlatList
             data={listings}
             renderItem={renderItem}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContainer}
           />
         </View>

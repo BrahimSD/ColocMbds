@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
@@ -190,35 +191,55 @@ export default function CreateListingScreen({ navigation }) {
           onPress: async () => {
             try {
               setLoading(true);
+              setError("");
 
               // Upload photos to Cloudinary
               const photoUrls = await Promise.all(
-                formData.photos.map(async (photoUri) => {
-                  const filename = photoUri.split("/").pop();
-                  const match = /\.(\w+)$/.exec(filename);
-                  const type = match ? `image/${match[1]}` : "image";
-
-                  const formData = new FormData();
-                  formData.append("file", {
-                    uri: photoUri,
-                    type,
-                    name: filename,
-                  });
-                  formData.append("upload_preset", "colocations");
-
-                  const response = await fetch(
-                    "https://api.cloudinary.com/v1_1/colocation/upload",
-                    {
-                      method: "POST",
-                      body: formData,
-                      headers: {
-                        "content-type": "multipart/form-data",
-                      },
+                formData.photos.map(async (photo) => {
+                  try {
+                    if (!photo || !photo.uri) {
+                      throw new Error("Photo invalide");
                     }
-                  );
 
-                  const data = await response.json();
-                  return data.secure_url;
+                    const filename = photo.uri.split("/").pop();
+                    const match = /\.(\w+)$/.exec(filename);
+                    const type = match ? `image/${match[1]}` : "image";
+
+                    const formData = new FormData();
+                    formData.append("file", {
+                      uri: photo.uri,
+                      type,
+                      name: filename,
+                    });
+                    formData.append("upload_preset", process.env.EXPO_PUBLIC_APP_CLOUDINARY_UPLOAD_PRESET);
+                    formData.append("api_key", process.env.EXPO_PUBLIC_APP_CLOUDINARY_API_KEY);
+
+                    const response = await fetch(
+                      process.env.EXPO_PUBLIC_APP_CLOUDINARY_URL,
+                      {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                          "Content-Type": "multipart/form-data",
+                        },
+                      }
+                    );
+
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      console.error("Cloudinary error:", errorData);
+                      throw new Error(errorData.error?.message || "Erreur lors du téléchargement de la photo");
+                    }
+
+                    const data = await response.json();
+                    if (!data.secure_url) {
+                      throw new Error("URL de la photo non reçue");
+                    }
+                    return data.secure_url;
+                  } catch (error) {
+                    console.error("Error uploading photo:", error);
+                    throw new Error(`Impossible de télécharger la photo: ${error.message}`);
+                  }
                 })
               );
 
@@ -265,22 +286,28 @@ export default function CreateListingScreen({ navigation }) {
               };
 
               // Add document to Firestore
-              const docRef = await addDoc(
-                collection(db, "listings"),
-                listingData
-              );
+              const docRef = await addDoc(collection(db, "listings"), listingData);
 
-              Alert.alert("Succès", "Votre annonce a été publiée avec succès", [
-                {
-                  text: "OK",
-                  onPress: () => navigation.navigate("MyListings"),
-                },
-              ]);
+              if (!docRef.id) {
+                throw new Error("Impossible de créer l'annonce");
+              }
+
+              Alert.alert(
+                "Succès",
+                "Votre annonce a été publiée avec succès",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => navigation.navigate("MyListings"),
+                  },
+                ]
+              );
             } catch (error) {
               console.error("Error submitting listing:", error);
+              setError(error.message || "Une erreur est survenue lors de la publication de l'annonce");
               Alert.alert(
                 "Erreur",
-                "Impossible de publier l'annonce: " + error.message
+                error.message || "Impossible de publier l'annonce. Veuillez réessayer."
               );
             } finally {
               setLoading(false);
@@ -354,11 +381,12 @@ export default function CreateListingScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
@@ -366,67 +394,69 @@ export default function CreateListingScreen({ navigation }) {
           <View style={styles.placeholder}></View>
         </View>
 
-        <View style={styles.progressContainer}>
-          {Object.keys(stepLabels).map((step) => (
-            <View
-              key={step}
-              style={[
-                styles.progressStep,
-                parseInt(step) <= currentStep ? styles.progressStepActive : {},
-              ]}
-            >
-              <Text
+        <ScrollView style={styles.scrollContainer}>
+          <View style={styles.progressContainer}>
+            {Object.keys(stepLabels).map((step) => (
+              <View
+                key={step}
                 style={[
-                  styles.progressStepText,
-                  parseInt(step) <= currentStep
-                    ? styles.progressStepTextActive
-                    : {},
+                  styles.progressStep,
+                  parseInt(step) <= currentStep ? styles.progressStepActive : {},
                 ]}
               >
-                {step}
-              </Text>
-            </View>
-          ))}
-        </View>
+                <Text
+                  style={[
+                    styles.progressStepText,
+                    parseInt(step) <= currentStep
+                      ? styles.progressStepTextActive
+                      : {},
+                  ]}
+                >
+                  {step}
+                </Text>
+              </View>
+            ))}
+          </View>
 
-        <View style={styles.stepLabelContainer}>
-          <Text style={styles.stepLabel}>{stepLabels[currentStep]}</Text>
-        </View>
+          <View style={styles.stepLabelContainer}>
+            <Text style={styles.stepLabel}>{stepLabels[currentStep]}</Text>
+          </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.formContainer}>{renderStep()}</View>
+          <View style={styles.formContainer}>{renderStep()}</View>
 
-        <View style={styles.navigationButtons}>
-          {currentStep > 1 && (
-            <TouchableOpacity
-              style={styles.backStepButton}
-              onPress={handlePrevious}
-            >
-              <Text style={styles.backStepButtonText}>Précédent</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.navigationButtons}>
+            {currentStep > 1 && (
+              <TouchableOpacity
+                style={styles.backStepButton}
+                onPress={handlePrevious}
+              >
+                <Text style={styles.backStepButtonText}>Précédent</Text>
+              </TouchableOpacity>
+            )}
 
-          {currentStep < 6 ? (
-            <TouchableOpacity
-              style={[
-                styles.nextStepButton,
-                currentStep === 1 ? { marginLeft: 0 } : {},
-              ]}
-              onPress={handleNext}
-            >
-              <Text style={styles.nextStepButtonText}>Suivant</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSubmit}
-            >
-              <Text style={styles.submitButtonText}>Publier l'annonce</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
+            {currentStep < 6 ? (
+              <TouchableOpacity
+                style={[
+                  styles.nextStepButton,
+                  currentStep === 1 ? { marginLeft: 0 } : {},
+                ]}
+                onPress={handleNext}
+              >
+                <Text style={styles.nextStepButtonText}>Suivant</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleSubmit}
+              >
+                <Text style={styles.submitButtonText}>Publier l'annonce</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -435,8 +465,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#fff",
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
   },
   container: {
+    flex: 1,
+  },
+  scrollContainer: {
     flex: 1,
   },
   loadingContainer: {
@@ -476,24 +510,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
+    backgroundColor: "#fff",
+    minHeight: 60,
   },
   backButton: {
-    padding: 5,
+    padding: 10,
+    marginLeft: 5,
   },
   backButtonText: {
-    fontSize: 24,
+    fontSize: 28,
     color: "#4C86F9",
     fontWeight: "bold",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
+    flex: 1,
+    textAlign: 'center',
   },
   placeholder: {
-    width: 20,
+    width: 45,
   },
   progressContainer: {
     flexDirection: "row",

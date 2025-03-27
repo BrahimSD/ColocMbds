@@ -12,6 +12,7 @@ import ListingsScreen from "./src/screens/ListingsScreen";
 import ListingDetailScreen from "./src/screens/ListingDetailScreen";
 import CreateListingScreen from "./src/screens/CreateListingScreen";
 import MyListingsScreen from "./src/screens/MyListingsScreen";
+import FavoritesScreen from "./src/screens/FavoritesScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -40,6 +41,7 @@ export default function App() {
               component={CreateListingScreen}
             />
             <Stack.Screen name="MyListings" component={MyListingsScreen} />
+            <Stack.Screen name="Favorites" component={FavoritesScreen} />
           </Stack.Navigator>
           <StatusBar style="auto" />
         </View>

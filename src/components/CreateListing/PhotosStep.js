@@ -1,40 +1,40 @@
 import React from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  Image,
-  ScrollView,
-  Alert
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const PhotosStep = ({ formData, setFormData }) => {
-  const handleAddPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission refusée', 'Vous devez autoriser l\'accès à la galerie pour ajouter des photos.');
-      return;
-    }
-    
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      // Pour l'instant, stockons juste les URI locaux - dans une vraie app, nous les téléchargerions sur Cloudinary ou un autre service
-      setFormData(prev => ({
-        ...prev,
-        photos: [...prev.photos, result.assets[0].uri]
-      }));
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à vos photos.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setFormData(prev => ({
+          ...prev,
+          photos: [...prev.photos, { uri: result.assets[0].uri }]
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors de la sélection de la photo.');
     }
   };
-  
-  const handleRemovePhoto = (index) => {
+
+  const removePhoto = (index) => {
     setFormData(prev => ({
       ...prev,
       photos: prev.photos.filter((_, i) => i !== index)
@@ -43,94 +43,105 @@ const PhotosStep = ({ formData, setFormData }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.stepDescription}>Ajoutez des photos du logement</Text>
-      
-      <TouchableOpacity 
-        style={styles.addPhotoButton}
-        onPress={handleAddPhoto}
-      >
-        <Text style={styles.addPhotoText}>+ Ajouter une photo</Text>
-      </TouchableOpacity>
-      
-      <Text style={styles.photoCountText}>
-        {formData.photos.length} photo{formData.photos.length !== 1 ? 's' : ''} ajoutée{formData.photos.length !== 1 ? 's' : ''}
+      <Text style={styles.title}>Photos du bien</Text>
+      <Text style={styles.description}>
+        Ajoutez au moins une photo de votre bien. Les photos de meilleure qualité seront affichées en premier.
       </Text>
-      
-      <ScrollView style={styles.photosContainer}>
+
+      <ScrollView horizontal style={styles.photosContainer}>
+        <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
+          <MaterialIcons name="add-photo-alternate" size={40} color="#666" />
+          <Text style={styles.addPhotoText}>Ajouter une photo</Text>
+        </TouchableOpacity>
+
         {formData.photos.map((photo, index) => (
           <View key={index} style={styles.photoContainer}>
-            <Image source={{ uri: photo }} style={styles.photo} />
+            <Image
+              source={{ uri: photo.uri }}
+              style={styles.photo}
+              resizeMode="cover"
+            />
             <TouchableOpacity
               style={styles.removeButton}
-              onPress={() => handleRemovePhoto(index)}
+              onPress={() => removePhoto(index)}
             >
-              <Text style={styles.removeButtonText}>×</Text>
+              <MaterialIcons name="close" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
         ))}
       </ScrollView>
+
+      {formData.photos.length > 0 && (
+        <Text style={styles.photoCount}>
+          {formData.photos.length} photo{formData.photos.length > 1 ? 's' : ''} sélectionnée{formData.photos.length > 1 ? 's' : ''}
+        </Text>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 20,
   },
-  stepDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-  },
-  addPhotoButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#ccc'
-  },
-  addPhotoText: {
-    color: '#4C86F9',
-    fontSize: 16,
+  title: {
+    fontSize: 24,
     fontWeight: 'bold',
+    color: '#2A265F',
+    marginBottom: 10,
   },
-  photoCountText: {
-    textAlign: 'center',
+  description: {
+    fontSize: 16,
     color: '#666',
     marginBottom: 20,
   },
   photosContainer: {
-    flex: 1,
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+  addPhotoButton: {
+    width: 150,
+    height: 150,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  addPhotoText: {
+    marginTop: 8,
+    color: '#666',
+    fontSize: 14,
   },
   photoContainer: {
-    position: 'relative',
-    marginBottom: 15,
+    width: 150,
+    height: 150,
+    marginRight: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   photo: {
     width: '100%',
-    height: 200,
-    borderRadius: 8,
-    resizeMode: 'cover'
+    height: '100%',
   },
   removeButton: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ff4d4f',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
-  removeButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold'
-  }
+  photoCount: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
 
 export default PhotosStep;

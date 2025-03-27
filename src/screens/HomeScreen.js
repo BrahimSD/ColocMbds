@@ -8,12 +8,13 @@ import {
   ScrollView,
   SafeAreaView,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuth, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import commonStyles from '../styles/commonStyles';
 
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -87,6 +88,16 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowUserMenu(false);
+              navigation.navigate('Favorites');
+            }}
+          >
+            <Text style={styles.menuText}>Mes Favoris</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.menuItem, styles.menuItemLogout]}
             onPress={handleLogout}
           >
@@ -98,9 +109,9 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
+    <SafeAreaView style={commonStyles.safeArea}>
+      <ScrollView style={commonStyles.container}>
+        <View style={commonStyles.header}>
           <Image
             source={require('../../assets/LogoApp.png')}
             style={styles.logo}
@@ -217,21 +228,6 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
   logo: {
     width: 120,
     height: 40,

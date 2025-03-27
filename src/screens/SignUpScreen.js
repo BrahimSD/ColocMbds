@@ -8,7 +8,10 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { 
   getAuth, 
@@ -18,6 +21,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import commonStyles from '../styles/commonStyles';
 
 export default function SignUpScreen({ navigation }) {
   const [formData, setFormData] = useState({
@@ -132,84 +136,95 @@ export default function SignUpScreen({ navigation }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.formContainer}>
-        <Image
-          source={require('../../assets/LogoApp.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        
-        <Text style={styles.title}>Créer un compte</Text>
-
-        <TextInput
-          style={[styles.input, errors.firstName && styles.inputError]}
-          placeholder="Prénom"
-          value={formData.firstName}
-          onChangeText={(text) => setFormData({...formData, firstName: text})}
-          autoCapitalize="words"
-        />
-        {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-
-        <TextInput
-          style={[styles.input, errors.lastName && styles.inputError]}
-          placeholder="Nom"
-          value={formData.lastName}
-          onChangeText={(text) => setFormData({...formData, lastName: text})}
-          autoCapitalize="words"
-        />
-        {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-
-        <TextInput
-          style={[styles.input, errors.email && styles.inputError]}
-          placeholder="Email"
-          value={formData.email}
-          onChangeText={(text) => setFormData({...formData, email: text})}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-
-        <TextInput
-          style={[styles.input, errors.password && styles.inputError]}
-          placeholder="Mot de passe"
-          value={formData.password}
-          onChangeText={(text) => setFormData({...formData, password: text})}
-          secureTextEntry
-        />
-        {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-
-        <TextInput
-          style={[styles.input, errors.confirmPassword && styles.inputError]}
-          placeholder="Confirmer le mot de passe"
-          value={formData.confirmPassword}
-          onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
-          secureTextEntry
-        />
-        {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
-
-        <TouchableOpacity 
-          style={styles.signUpButton}
-          onPress={handleSignUp}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.signUpButtonText}>S'inscrire</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={() => navigation.navigate('Login')}
-        >
-          <Text style={styles.loginButtonText}>
-            Déjà un compte ? Se connecter
-          </Text>
-        </TouchableOpacity>
+    <SafeAreaView style={commonStyles.safeArea}>
+      <View style={commonStyles.header}>
+        <View style={commonStyles.placeholder} />
+        <Text style={commonStyles.headerTitle}>Inscription</Text>
+        <View style={commonStyles.placeholder} />
       </View>
-    </ScrollView>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.formContainer}>
+          <Image
+            source={require('../../assets/LogoApp.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          
+          <Text style={styles.title}>Créer un compte</Text>
+
+          <TextInput
+            style={[styles.input, errors.firstName && styles.inputError]}
+            placeholder="Prénom"
+            value={formData.firstName}
+            onChangeText={(text) => setFormData({...formData, firstName: text})}
+            autoCapitalize="words"
+          />
+          {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+
+          <TextInput
+            style={[styles.input, errors.lastName && styles.inputError]}
+            placeholder="Nom"
+            value={formData.lastName}
+            onChangeText={(text) => setFormData({...formData, lastName: text})}
+            autoCapitalize="words"
+          />
+          {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+
+          <TextInput
+            style={[styles.input, errors.email && styles.inputError]}
+            placeholder="Email"
+            value={formData.email}
+            onChangeText={(text) => setFormData({...formData, email: text})}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+          <TextInput
+            style={[styles.input, errors.password && styles.inputError]}
+            placeholder="Mot de passe"
+            value={formData.password}
+            onChangeText={(text) => setFormData({...formData, password: text})}
+            secureTextEntry
+          />
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+
+          <TextInput
+            style={[styles.input, errors.confirmPassword && styles.inputError]}
+            placeholder="Confirmer le mot de passe"
+            value={formData.confirmPassword}
+            onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
+            secureTextEntry
+          />
+          {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+
+          <TouchableOpacity 
+            style={styles.signUpButton}
+            onPress={handleSignUp}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.signUpButtonText}>S'inscrire</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.loginButtonText}>
+              Déjà un compte ? Se connecter
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

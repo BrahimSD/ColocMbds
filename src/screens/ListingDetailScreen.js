@@ -11,10 +11,13 @@ import {
   Alert,
   Dimensions,
   Share,
+  SafeAreaView,
 } from "react-native";
-import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import commonStyles from '../styles/commonStyles';
+import FavoriteButton from '../components/FavoriteButton';
 
 const windowWidth = Dimensions.get("window").width;
 
@@ -216,214 +219,238 @@ export default function ListingDetailScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4C86F9" />
-      </View>
+      <SafeAreaView style={commonStyles.safeArea}>
+        <View style={commonStyles.header}>
+          <TouchableOpacity
+            style={commonStyles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={commonStyles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={commonStyles.headerTitle}>Détails de l'annonce</Text>
+          <View style={commonStyles.placeholder} />
+        </View>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4C86F9" />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={commonStyles.safeArea}>
+      <View style={commonStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={commonStyles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={commonStyles.backButtonText}>←</Text>
         </TouchableOpacity>
+        <Text style={commonStyles.headerTitle}>Détails de l'annonce</Text>
+        <FavoriteButton
+          listingId={route.params.id}
+          style={styles.favoriteButton}
+        />
       </View>
 
-      <View style={styles.photoContainer}>
-        {listing?.photos && listing.photos.length > 0 ? (
-          <>
-            <Image
-              source={{ uri: listing.photos[currentPhotoIndex] }}
-              style={styles.mainPhoto}
-              resizeMode="cover"
-            />
-            {listing.photos.length > 1 && (
-              <View style={styles.photoControls}>
-                <TouchableOpacity
-                  onPress={() =>
-                    setCurrentPhotoIndex((prev) =>
-                      prev > 0 ? prev - 1 : listing.photos.length - 1
-                    )
+      <ScrollView style={styles.container}>
+        <View style={styles.photoContainer}>
+          {listing?.photos && listing.photos.length > 0 ? (
+            <>
+              <Image
+                source={{ uri: listing.photos[currentPhotoIndex] }}
+                style={styles.mainPhoto}
+                resizeMode="cover"
+              />
+              {listing.photos.length > 1 && (
+                <View style={styles.photoControls}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCurrentPhotoIndex((prev) =>
+                        prev > 0 ? prev - 1 : listing.photos.length - 1
+                      )
                   }
-                  style={styles.photoButton}
-                  disabled={listing.photos.length <= 1}
-                >
-                  <Text style={styles.photoButtonText}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.photoCounter}>
-                  {currentPhotoIndex + 1} / {listing.photos.length}
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setCurrentPhotoIndex((prev) =>
-                      prev < listing.photos.length - 1 ? prev + 1 : 0
-                    )
+                    style={styles.photoButton}
+                    disabled={listing.photos.length <= 1}
+                  >
+                    <Text style={styles.photoButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.photoCounter}>
+                    {currentPhotoIndex + 1} / {listing.photos.length}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCurrentPhotoIndex((prev) =>
+                        prev < listing.photos.length - 1 ? prev + 1 : 0
+                      )
                   }
-                  style={styles.photoButton}
-                  disabled={listing.photos.length <= 1}
-                >
-                  <Text style={styles.photoButtonText}>→</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={styles.noPhotoContainer}>
-            <Text style={styles.noPhotoText}>Aucune photo disponible</Text>
-          </View>
-        )}
-      </View>
+                    style={styles.photoButton}
+                    disabled={listing.photos.length <= 1}
+                  >
+                    <Text style={styles.photoButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.noPhotoContainer}>
+              <Text style={styles.noPhotoText}>Aucune photo disponible</Text>
+            </View>
+          )}
+        </View>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.title}>
-          {listing?.details?.title || "Sans titre"}
-        </Text>
-        <Text style={styles.price}>{listing?.details?.rent || "0"} €/mois</Text>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Localisation</Text>
-          <Text style={styles.location}>{listing?.location?.street || ""}</Text>
-          <Text style={styles.location}>
-            {listing?.location?.postalCode || ""}{" "}
-            {listing?.location?.city || ""}, {listing?.location?.country || ""}
+        <View style={styles.infoContainer}>
+          <Text style={styles.title}>
+            {listing?.details?.title || "Sans titre"}
           </Text>
-        </View>
+          <Text style={styles.price}>{listing?.details?.rent || "0"} €/mois</Text>
 
-        <View style={styles.featuresGrid}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureText}>
-              👥{" "}
-              {listing?.details?.totalRoommates ||
-                listing?.housing?.totalRoommates ||
-                "?"}{" "}
-              colocataires
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Localisation</Text>
+            <Text style={styles.location}>{listing?.location?.street || ""}</Text>
+            <Text style={styles.location}>
+              {listing?.location?.postalCode || ""}{" "}
+              {listing?.location?.city || ""}, {listing?.location?.country || ""}
             </Text>
           </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureText}>
-              🚿{" "}
-              {listing?.details?.bathrooms ||
-                listing?.housing?.bathrooms ||
-                "?"}{" "}
-              salles de bain
-            </Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureText}>
-              📏{" "}
-              {listing?.details?.privateArea ||
-                listing?.housing?.privateArea ||
-                "?"}{" "}
-              m² privés
-            </Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureText}>
-              🏠 {listing?.details?.propertyType || "?"}
-            </Text>
-          </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Caractéristiques</Text>
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Surface totale</Text>
-              <Text style={styles.detailValue}>
-                {listing?.details?.totalArea ||
-                  listing?.housing?.totalArea ||
+          <View style={styles.featuresGrid}>
+            <View style={styles.featureItem}>
+              <Text style={styles.featureText}>
+                👥{" "}
+                {listing?.details?.totalRoommates ||
+                  listing?.housing?.totalRoommates ||
                   "?"}{" "}
-                m²
+                colocataires
               </Text>
             </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Chambres</Text>
-              <Text style={styles.detailValue}>
-                {listing?.details?.rooms || listing?.housing?.rooms || "?"}
+            <View style={styles.featureItem}>
+              <Text style={styles.featureText}>
+                🚿{" "}
+                {listing?.details?.bathrooms ||
+                  listing?.housing?.bathrooms ||
+                  "?"}{" "}
+                salles de bain
               </Text>
             </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Étage</Text>
-              <Text style={styles.detailValue}>
-                {listing?.details?.floor || listing?.housing?.floor || "RDC"}
+            <View style={styles.featureItem}>
+              <Text style={styles.featureText}>
+                📏{" "}
+                {listing?.details?.privateArea ||
+                  listing?.housing?.privateArea ||
+                  "?"}{" "}
+                m² privés
               </Text>
             </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Meublé</Text>
-              <Text style={styles.detailValue}>
-                {listing?.details?.furnished ? "Oui" : "Non"}
-              </Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Disponible à partir de</Text>
-              <Text style={styles.detailValue}>
-                {listing?.details?.availableDate
-                  ? new Date(listing.details.availableDate).toLocaleDateString()
-                  : "Non spécifié"}
+            <View style={styles.featureItem}>
+              <Text style={styles.featureText}>
+                🏠 {listing?.details?.propertyType || "?"}
               </Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Équipements</Text>
-          {renderAmenities()}
-        </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Caractéristiques</Text>
+            <View style={styles.detailsGrid}>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Surface totale</Text>
+                <Text style={styles.detailValue}>
+                  {listing?.details?.totalArea ||
+                    listing?.housing?.totalArea ||
+                    "?"}{" "}
+                  m²
+                </Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Chambres</Text>
+                <Text style={styles.detailValue}>
+                  {listing?.details?.rooms || listing?.housing?.rooms || "?"}
+                </Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Étage</Text>
+                <Text style={styles.detailValue}>
+                  {listing?.details?.floor || listing?.housing?.floor || "RDC"}
+                </Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Meublé</Text>
+                <Text style={styles.detailValue}>
+                  {listing?.details?.furnished ? "Oui" : "Non"}
+                </Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Disponible à partir de</Text>
+                <Text style={styles.detailValue}>
+                  {listing?.details?.availableDate
+                    ? new Date(listing.details.availableDate).toLocaleDateString()
+                    : "Non spécifié"}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>
-            {listing?.details?.description || "Pas de description"}
-          </Text>
-        </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Équipements</Text>
+            {renderAmenities()}
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact</Text>
-          <Text style={styles.contactName}>
-            {listing?.contact?.contactName ||
-              listing?.metadata?.userName ||
-              listing?.contact?.name ||
-              "Non spécifié"}
-          </Text>
-          {listing?.contact?.contactEmail && (
-            <Text style={styles.contactDetail}>
-              Email: {listing.contact.contactEmail}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Description</Text>
+            <Text style={styles.description}>
+              {listing?.details?.description || "Pas de description"}
             </Text>
-          )}
-          {listing?.contact?.contactPhone && (
-            <Text style={styles.contactDetail}>
-              Téléphone: {listing.contact.contactPhone}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            <Text style={styles.contactName}>
+              {listing?.contact?.contactName ||
+                listing?.metadata?.userName ||
+                listing?.contact?.name ||
+                "Non spécifié"}
             </Text>
-          )}
+            {listing?.contact?.contactEmail && (
+              <Text style={styles.contactDetail}>
+                Email: {listing.contact.contactEmail}
+              </Text>
+            )}
+            {listing?.contact?.contactPhone && (
+              <Text style={styles.contactDetail}>
+                Téléphone: {listing.contact.contactPhone}
+              </Text>
+            )}
 
-          <TouchableOpacity
-            style={styles.contactButton}
-            onPress={handleContact}
-          >
-            <Text style={styles.contactButtonText}>Contacter l'annonceur</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Text style={styles.shareButtonText}>Partager</Text>
-          </TouchableOpacity>
-
-          {user && !isAdmin && !reported && !checkIfReported(listing) && (
             <TouchableOpacity
-              style={styles.reportButton}
-              onPress={handleReport}
+              style={styles.contactButton}
+              onPress={handleContact}
             >
-              <Text style={styles.reportButtonText}>Signaler</Text>
+              <Text style={styles.contactButtonText}>Contacter l'annonceur</Text>
             </TouchableOpacity>
-          )}
+          </View>
+
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Text style={styles.shareButtonText}>Partager</Text>
+            </TouchableOpacity>
+
+            {user && !isAdmin && !reported && !checkIfReported(listing) && (
+              <TouchableOpacity
+                style={styles.reportButton}
+                onPress={handleReport}
+              >
+                <Text style={styles.reportButtonText}>Signaler</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+      </ScrollView>
+
+      <View style={styles.actionButtons}>
+        <FavoriteButton listingId={listing.id} style={styles.favoriteButton} />
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -436,20 +463,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 15,
-    paddingTop: 15,
-  },
-  backButton: {
-    padding: 5,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: "#4C86F9",
-    fontWeight: "bold",
   },
   photoContainer: {
     position: "relative",
@@ -648,5 +661,39 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "bold",
+  },
+  favoriteButton: {
+    marginRight: 10,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#4C86F9',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  chatButton: {
+    backgroundColor: '#4C86F9',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  favoriteButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -1,101 +1,149 @@
 import React from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput,
-  Switch,
-  KeyboardAvoidingView,
-  Platform
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ContactStep = ({ formData, setFormData }) => {
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <Text style={styles.stepDescription}>Comment les intéressés peuvent vous contacter</Text>
+  const { user } = useAuth();
 
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Nom complet *</Text>
+  const handleChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleUseProfileInfo = () => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        contactName: user.displayName || '',
+        contactEmail: user.email || '',
+      }));
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Informations de contact</Text>
+      <Text style={styles.description}>
+        Ces informations seront visibles pour les personnes intéressées par votre annonce
+      </Text>
+
+      <TouchableOpacity
+        style={styles.profileButton}
+        onPress={handleUseProfileInfo}
+      >
+        <Text style={styles.profileButtonText}>
+          Utiliser les informations de mon profil
+        </Text>
+      </TouchableOpacity>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Nom *</Text>
         <TextInput
           style={styles.input}
           value={formData.contactName}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, contactName: text }))}
-          placeholder="Votre nom et prénom"
+          onChangeText={(value) => handleChange('contactName', value)}
+          placeholder="Votre nom"
+          placeholderTextColor="#999"
         />
       </View>
 
-      <View style={styles.formGroup}>
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Téléphone *</Text>
         <TextInput
           style={styles.input}
           value={formData.contactPhone}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, contactPhone: text }))}
+          onChangeText={(value) => handleChange('contactPhone', value)}
           placeholder="Votre numéro de téléphone"
           keyboardType="phone-pad"
+          placeholderTextColor="#999"
         />
       </View>
 
-      <View style={styles.formGroup}>
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Email *</Text>
         <TextInput
           style={styles.input}
           value={formData.contactEmail}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, contactEmail: text }))}
-          placeholder="Votre adresse email"
+          onChangeText={(value) => handleChange('contactEmail', value)}
+          placeholder="Votre email"
           keyboardType="email-address"
           autoCapitalize="none"
+          placeholderTextColor="#999"
         />
       </View>
 
-      <View style={styles.formGroup}>
-        <View style={styles.switchContainer}>
-          <Text style={styles.label}>J'accepte que mes informations soient partagées avec les utilisateurs intéressés *</Text>
-          <Switch
-            value={formData.acceptTerms}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, acceptTerms: value }))}
-            trackColor={{ false: "#d3d3d3", true: "#4C86F9" }}
-            thumbColor={formData.acceptTerms ? "#fff" : "#f4f3f4"}
-          />
-        </View>
+      <View style={styles.termsContainer}>
+        <Switch
+          value={formData.acceptTerms}
+          onValueChange={(value) => handleChange('acceptTerms', value)}
+          trackColor={{ false: '#ddd', true: '#ffd60a' }}
+          thumbColor={formData.acceptTerms ? '#000' : '#fff'}
+        />
+        <Text style={styles.termsText}>
+          J'accepte les conditions d'utilisation et la politique de confidentialité
+        </Text>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 20,
   },
-  stepDescription: {
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2A265F',
+    marginBottom: 10,
+  },
+  description: {
     fontSize: 16,
     color: '#666',
     marginBottom: 20,
   },
-  formGroup: {
+  profileButton: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileButtonText: {
+    color: '#2A265F',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  inputGroup: {
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
+    color: '#333',
     marginBottom: 8,
     fontWeight: '500',
-    flex: 1,
   },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
   },
-  switchContainer: {
+  termsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  }
+    marginTop: 20,
+  },
+  termsText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
 });
 
 export default ContactStep;

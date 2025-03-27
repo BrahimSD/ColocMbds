@@ -1,79 +1,113 @@
 import React from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Switch,
-  ScrollView
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+
+const services = [
+  { id: 'wifi', label: 'Wi-Fi', icon: 'wifi' },
+  { id: 'handicapAccess', label: 'Accès handicapé', icon: 'accessible' },
+  { id: 'kitchenware', label: 'Vaisselle', icon: 'kitchen' },
+  { id: 'microwave', label: 'Micro-ondes', icon: 'microwave' },
+  { id: 'laundry', label: 'Machine à laver', icon: 'local-laundry-service' },
+  { id: 'bikeParking', label: 'Parking vélo', icon: 'directions-bike' },
+  { id: 'linens', label: 'Linge de maison', icon: 'bed' },
+  { id: 'washingMachine', label: 'Lave-linge', icon: 'local-laundry-service' },
+  { id: 'tv', label: 'Télévision', icon: 'tv' },
+  { id: 'doubleBed', label: 'Lit double', icon: 'king-bed' },
+  { id: 'elevator', label: 'Ascenseur', icon: 'elevator' },
+  { id: 'parking', label: 'Parking', icon: 'local-parking' },
+];
 
 const ServicesStep = ({ formData, setFormData }) => {
-  const serviceItems = [
-    { key: 'wifi', label: 'Wifi inclus' },
-    { key: 'handicapAccess', label: 'Accès handicapé' },
-    { key: 'kitchenware', label: 'Kit vaisselle' },
-    { key: 'microwave', label: 'Four micro-ondes' },
-    { key: 'laundry', label: 'Laverie' },
-    { key: 'bikeParking', label: 'Parking vélo' },
-    { key: 'linens', label: 'Linge fourni' },
-    { key: 'washingMachine', label: 'Lave-linge' },
-    { key: 'tv', label: 'TV' },
-    { key: 'doubleBed', label: 'Lit double' },
-    { key: 'elevator', label: 'Ascenseur' },
-    { key: 'parking', label: 'Parking' }
-  ];
-
-  const handleServiceChange = (key, value) => {
+  const toggleService = (serviceId) => {
     setFormData(prev => ({
       ...prev,
       services: {
         ...prev.services,
-        [key]: value
+        [serviceId]: !prev.services[serviceId]
       }
     }));
   };
 
   return (
-    <ScrollView>
-      <View style={styles.container}>
-        <Text style={styles.stepDescription}>Sélectionnez les services disponibles</Text>
-        
-        {serviceItems.map(item => (
-          <View key={item.key} style={styles.serviceItem}>
-            <Text style={styles.serviceLabel}>{item.label}</Text>
-            <Switch
-              value={formData.services[item.key]}
-              onValueChange={(value) => handleServiceChange(item.key, value)}
-              trackColor={{ false: "#d3d3d3", true: "#4C86F9" }}
-              thumbColor={formData.services[item.key] ? "#fff" : "#f4f3f4"}
-            />
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      <Text style={styles.title}>Services inclus</Text>
+      <Text style={styles.description}>
+        Sélectionnez les services disponibles dans votre bien
+      </Text>
+
+      <ScrollView style={styles.servicesContainer}>
+        <View style={styles.servicesGrid}>
+          {services.map((service) => (
+            <TouchableOpacity
+              key={service.id}
+              style={[
+                styles.serviceItem,
+                formData.services[service.id] && styles.serviceItemActive
+              ]}
+              onPress={() => toggleService(service.id)}
+            >
+              <MaterialIcons
+                name={service.icon}
+                size={24}
+                color={formData.services[service.id] ? '#000' : '#666'}
+              />
+              <Text style={[
+                styles.serviceLabel,
+                formData.services[service.id] && styles.serviceLabelActive
+              ]}>
+                {service.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 20,
   },
-  stepDescription: {
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2A265F',
+    marginBottom: 10,
+  },
+  description: {
     fontSize: 16,
     color: '#666',
     marginBottom: 20,
   },
-  serviceItem: {
+  servicesContainer: {
+    flex: 1,
+  },
+  servicesGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 15,
+  },
+  serviceItem: {
+    width: '47%',
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee'
+    gap: 8,
+  },
+  serviceItemActive: {
+    backgroundColor: '#ffd60a',
   },
   serviceLabel: {
-    fontSize: 16,
-  }
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  serviceLabelActive: {
+    color: '#000',
+    fontWeight: '500',
+  },
 });
 
 export default ServicesStep;
