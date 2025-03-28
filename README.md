@@ -122,3 +122,8 @@ npx expo build:ios      # Pour iOS
 - Validation des données côté serveur
 - Protection contre les injections
 - Gestion sécurisée des fichiers
+
+e via Firebase
+- Validation des données côté serveur
+- Protection contre les injections
+- Gestion sécurisée des fichiers

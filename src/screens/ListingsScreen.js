@@ -16,10 +16,9 @@ import {
   Dimensions,
   RefreshControl,
 } from "react-native";
-import { Marker } from 'react-native-maps';
-import Slider from '@react-native-community/slider';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from "@react-native-community/slider";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   collection,
   getDocs,
@@ -27,18 +26,15 @@ import {
   orderBy,
   where,
   limit,
-  startAfter,
-  getCountFromServer
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useAuth } from "../contexts/AuthContext";
-import commonStyles from '../styles/commonStyles';
-import FavoriteButton from '../components/FavoriteButton';
-import Map from '../components/Map';
+import commonStyles from "../styles/commonStyles";
+import FavoriteButton from "../components/FavoriteButton";
+import Map, { Marker } from "../components/Map";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const ITEMS_PER_PAGE = 10;
 
 export default function ListingsScreen({ navigation }) {
@@ -55,40 +51,26 @@ export default function ListingsScreen({ navigation }) {
   const [filters, setFilters] = useState({
     price: [0, 2000],
     area: [0, 200],
-    propertyType: 'all',
-    furnished: 'all',
+    propertyType: "all",
+    furnished: "all",
     services: [],
   });
-  const [lastVisible, setLastVisible] = useState(null);
-  const [listingCoordinates, setListingCoordinates] = useState({});
 
-  const propertyTypes = [
-    "Appartement",
-    "Maison",
-    "Studio",
-    "Loft",
-    "Chambre",
-  ];
+  const propertyTypes = ["Appartement", "Maison", "Studio", "Loft", "Chambre"];
 
-  const services = [
-    "wifi",
-    "washingMachine",
-    "tv",
-    "parking",
-    "elevator",
-  ];
+  const services = ["wifi", "washingMachine", "tv", "parking", "elevator"];
 
   // Fonction pour charger les données depuis le cache
   const loadFromCache = async () => {
     try {
-      const cachedData = await AsyncStorage.getItem('listingsCache');
-      const cachedTime = await AsyncStorage.getItem('listingsCacheTime');
-      
+      const cachedData = await AsyncStorage.getItem("listingsCache");
+      const cachedTime = await AsyncStorage.getItem("listingsCacheTime");
+
       if (cachedData && cachedTime) {
         const parsedData = JSON.parse(cachedData);
         const lastUpdate = parseInt(cachedTime);
         const now = Date.now();
-        
+
         // Utiliser le cache si les données ont moins de 5 minutes
         if (now - lastUpdate < 5 * 60 * 1000) {
           setListings(parsedData);
@@ -98,7 +80,7 @@ export default function ListingsScreen({ navigation }) {
       }
       return false;
     } catch (error) {
-      console.error('Error loading from cache:', error);
+      console.error("Error loading from cache:", error);
       return false;
     }
   };
@@ -106,52 +88,16 @@ export default function ListingsScreen({ navigation }) {
   // Fonction pour sauvegarder les données dans le cache
   const saveToCache = async (data) => {
     try {
-      await AsyncStorage.setItem('listingsCache', JSON.stringify(data));
-      await AsyncStorage.setItem('listingsCacheTime', Date.now().toString());
+      await AsyncStorage.setItem("listingsCache", JSON.stringify(data));
+      await AsyncStorage.setItem("listingsCacheTime", Date.now().toString());
     } catch (error) {
-      console.error('Error saving to cache:', error);
+      console.error("Error saving to cache:", error);
     }
-  };
-
-  // Fonction pour obtenir les coordonnées à partir d'une adresse
-  const getCoordinatesFromAddress = async (address, city, postalCode) => {
-    try {
-      const fullAddress = `${address}, ${postalCode} ${city}, France`;
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${GOOGLE_MAPS_API_KEY}`
-      );
-
-      if (response.data.results && response.data.results.length > 0) {
-        const { lat, lng } = response.data.results[0].geometry.location;
-        return { latitude: lat, longitude: lng };
-      }
-      return null;
-    } catch (error) {
-      console.error('Geocoding error:', error);
-      return null;
-    }
-  };
-
-  // Fonction pour mettre à jour les coordonnées des annonces
-  const updateListingCoordinates = async (listings) => {
-    const coordinates = {};
-    for (const listing of listings) {
-      if (listing.location?.street && listing.location?.city && listing.location?.postalCode) {
-        const coords = await getCoordinatesFromAddress(
-          listing.location.street,
-          listing.location.city,
-          listing.location.postalCode
-        );
-        if (coords) {
-          coordinates[listing.id] = coords;
-        }
-      }
-    }
-    setListingCoordinates(coordinates);
   };
 
   const fetchListings = async (pageNumber = 1, shouldRefresh = false) => {
     try {
+      // Vérification du cache comme avant
       if (pageNumber === 1 && !shouldRefresh) {
         const hasCachedData = await loadFromCache();
         if (hasCachedData) {
@@ -160,71 +106,165 @@ export default function ListingsScreen({ navigation }) {
         }
       }
 
-      // Construire la requête Firestore
-      let listingsQuery = query(
-        collection(db, "listings"),
-        where("isVisible", "==", true),
-        orderBy("metadata.createdAt", "desc"),
-        limit(ITEMS_PER_PAGE)
-      );
+      setLoading(true);
 
-      // Appliquer les filtres
-      if (filters.price[0] > 0 || filters.price[1] < 2000) {
-        listingsQuery = query(
-          listingsQuery,
-          where("details.rent", ">=", filters.price[0]),
-          where("details.rent", "<=", filters.price[1])
+      // Essayer d'abord l'API
+      let apiSuccess = false;
+      try {
+        // Préparer les paramètres de la requête
+        const params = {
+          page: pageNumber,
+          limit: ITEMS_PER_PAGE,
+          price_min: filters.price[0],
+          price_max: filters.price[1],
+          area_min: filters.area[0],
+          area_max: filters.area[1],
+          propertyType:
+            filters.propertyType !== "all" ? filters.propertyType : undefined,
+          furnished:
+            filters.furnished !== "all" ? filters.furnished : undefined,
+          services: filters.services.length > 0 ? filters.services : undefined,
+          sort: "date_desc",
+        };
+
+        console.log("Fetching listings with params:", params);
+
+        const API_URL =
+          Platform.OS === "web"
+            ? process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000"
+            : process.env.EXPO_PUBLIC_API_URL_MOBILE ||
+              "http://192.168.1.151:5000";
+
+        const response = await axios.get(`${API_URL}/api/listings`, {
+          params,
+          headers: user
+            ? {
+                Authorization: `Bearer ${await user.getIdToken()}`,
+              }
+            : {},
+          timeout: 5000, // 5 secondes timeout
+        });
+
+        if (response.data.success) {
+          const newListings = response.data.listings;
+          console.log(`Received ${newListings.length} listings from API`);
+
+          // Vérifier si nous avons plus de pages
+          const hasMore = newListings.length === ITEMS_PER_PAGE;
+          setHasMore(hasMore);
+
+          if (pageNumber === 1) {
+            setListings(newListings);
+            setFilteredListings(newListings);
+            saveToCache(newListings);
+          } else {
+            setListings((prev) => [...prev, ...newListings]);
+            setFilteredListings((prev) => [...prev, ...newListings]);
+          }
+
+          apiSuccess = true;
+        }
+      } catch (error) {
+        console.log("API fetch failed, falling back to Firebase:", error);
+        apiSuccess = false;
+      }
+
+      // Si l'API a échoué, utiliser Firebase directement
+      if (!apiSuccess) {
+        console.log("Fetching listings directly from Firebase");
+        let firestoreQuery = collection(db, "listings");
+
+        // Filtrer les annonces actives et visibles uniquement
+        firestoreQuery = query(
+          firestoreQuery,
+          where("status", "==", "active"),
+          where("isVisible", "==", true),
+          orderBy("metadata.createdAt", "desc"),
+          limit(ITEMS_PER_PAGE * pageNumber)
         );
-      }
 
-      if (filters.propertyType !== 'all') {
-        listingsQuery = query(
-          listingsQuery,
-          where("details.propertyType", "==", filters.propertyType)
-        );
-      }
+        // Pour pagination, on pourrait utiliser startAfter avec le dernier document
+        // mais ici on simplifie en récupérant tout puis en filtrant
 
-      if (filters.furnished !== 'all') {
-        listingsQuery = query(
-          listingsQuery,
-          where("details.furnished", "==", filters.furnished === 'yes')
-        );
-      }
+        const querySnapshot = await getDocs(firestoreQuery);
+        let newListings = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-      // Si ce n'est pas la première page, commencer après le dernier document
-      if (pageNumber > 1 && lastVisible) {
-        listingsQuery = query(listingsQuery, startAfter(lastVisible));
-      }
+        console.log(`Received ${newListings.length} listings from Firebase`);
 
-      // Exécuter la requête
-      const listingsSnapshot = await getDocs(listingsQuery);
-      const newListings = listingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+        // Appliquer les filtres côté client
+        newListings = newListings.filter((listing) => {
+          // Filter by price
+          const rent = parseFloat(listing.details?.rent) || 0;
+          if (rent < filters.price[0] || rent > filters.price[1]) return false;
 
-      // Mettre à jour le dernier document visible pour la pagination
-      if (listingsSnapshot.docs.length > 0) {
-        setLastVisible(listingsSnapshot.docs[listingsSnapshot.docs.length - 1]);
-      }
+          // Filter by area
+          const area = parseFloat(listing.housing?.privateArea) || 0;
+          if (area < filters.area[0] || area > filters.area[1]) return false;
 
-      // Vérifier s'il y a plus de données
-      setHasMore(newListings.length === ITEMS_PER_PAGE);
+          // Filter by property type
+          if (
+            filters.propertyType !== "all" &&
+            listing.details?.propertyType !== filters.propertyType
+          )
+            return false;
 
-      if (pageNumber === 1) {
-        setListings(newListings);
-        setFilteredListings(newListings);
-        saveToCache(newListings);
-        await updateListingCoordinates(newListings);
-      } else {
-        const updatedListings = [...listings, ...newListings];
-        setListings(updatedListings);
-        setFilteredListings(updatedListings);
-        await updateListingCoordinates(newListings);
+          // Filter by furnished
+          if (filters.furnished === "yes" && !listing.details?.furnished)
+            return false;
+          if (filters.furnished === "no" && listing.details?.furnished)
+            return false;
+
+          // Filter by services
+          if (filters.services.length > 0) {
+            // Check if ALL required services are present
+            for (const service of filters.services) {
+              if (!listing.services?.[service]) return false;
+            }
+          }
+
+          return true;
+        });
+
+        // Apply search query if present
+        if (searchQuery.trim() !== "") {
+          const searchLower = searchQuery.toLowerCase();
+          newListings = newListings.filter((listing) => {
+            const city = (listing.location?.city || "").toLowerCase();
+            const street = (listing.location?.street || "").toLowerCase();
+            const title = (listing.details?.title || "").toLowerCase();
+
+            return (
+              city.includes(searchLower) ||
+              street.includes(searchLower) ||
+              title.includes(searchLower)
+            );
+          });
+        }
+
+        // Si page 1, remplacer tout
+        if (pageNumber === 1) {
+          setListings(newListings);
+          setFilteredListings(newListings);
+          saveToCache(newListings);
+        } else {
+          // Pour les autres pages, on ajoute, mais il faut éviter les doublons
+          const existingIds = listings.map((l) => l.id);
+          const uniqueNewListings = newListings.filter(
+            (l) => !existingIds.includes(l.id)
+          );
+
+          setListings((prev) => [...prev, ...uniqueNewListings]);
+          setFilteredListings((prev) => [...prev, ...uniqueNewListings]);
+        }
+
+        setHasMore(newListings.length === ITEMS_PER_PAGE);
       }
     } catch (error) {
-      console.error('Error fetching listings:', error);
-      Alert.alert('Erreur', 'Impossible de charger les annonces');
+      console.error("Error fetching listings:", error);
+      Alert.alert("Erreur", "Impossible de charger les annonces");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -259,7 +299,7 @@ export default function ListingsScreen({ navigation }) {
     const searchLower = text.toLowerCase();
     const filtered = listings.filter((listing) => {
       if (!listing || !listing.location || !listing.details) return false;
-      
+
       const city = (listing.location.city || "").toLowerCase();
       const street = (listing.location.street || "").toLowerCase();
       const title = (listing.details.title || "").toLowerCase();
@@ -284,11 +324,10 @@ export default function ListingsScreen({ navigation }) {
     setFilters({
       price: [0, 2000],
       area: [0, 200],
-      propertyType: 'all',
-      furnished: 'all',
+      propertyType: "all",
+      furnished: "all",
       services: [],
     });
-    setLastVisible(null); // Réinitialiser le dernier document visible
     setPage(1);
     fetchListings(1, true);
     setShowFilters(false);
@@ -408,12 +447,18 @@ export default function ListingsScreen({ navigation }) {
         <Map
           style={styles.map}
           initialRegion={initialRegion}
-          showsUserLocation
-          showsMyLocationButton
+          showsUserLocation={Platform.OS !== "web"}
+          showsMyLocationButton={Platform.OS !== "web"}
         >
           {filteredListings.map((listing) => {
-            const coordinates = listingCoordinates[listing.id];
-            if (!coordinates) return null;
+            if (!listing.location?.coordinates?.lat || !listing.location?.coordinates?.lng) {
+              return null;
+            }
+
+            const coordinates = {
+              latitude: listing.location.coordinates.lat,
+              longitude: listing.location.coordinates.lng,
+            };
 
             return (
               <Marker
@@ -429,50 +474,67 @@ export default function ListingsScreen({ navigation }) {
       </View>
     );
   };
-
   const renderFilters = () => {
     if (!showFilters) return null;
 
     return (
       <View style={styles.filtersContainer}>
         <Text style={styles.filterTitle}>Filtres</Text>
-        
-        <Text style={styles.filterLabel}>Prix: {filters.price[0]}€ - {filters.price[1]}€</Text>
+
+        <Text style={styles.filterLabel}>
+          Prix: {filters.price[0]}€ - {filters.price[1]}€
+        </Text>
         <Slider
           style={styles.slider}
           minimumValue={0}
           maximumValue={2000}
           step={50}
           value={filters.price[1]}
-          onValueChange={value => setFilters(prev => ({ ...prev, price: [prev.price[0], value] }))}
+          onValueChange={(value) =>
+            setFilters((prev) => ({ ...prev, price: [prev.price[0], value] }))
+          }
         />
 
-        <Text style={styles.filterLabel}>Surface: {filters.area[0]}m² - {filters.area[1]}m²</Text>
+        <Text style={styles.filterLabel}>
+          Surface: {filters.area[0]}m² - {filters.area[1]}m²
+        </Text>
         <Slider
           style={styles.slider}
           minimumValue={0}
           maximumValue={200}
           step={10}
           value={filters.area[1]}
-          onValueChange={value => setFilters(prev => ({ ...prev, area: [prev.area[0], value] }))}
+          onValueChange={(value) =>
+            setFilters((prev) => ({ ...prev, area: [prev.area[0], value] }))
+          }
         />
 
         <Text style={styles.filterLabel}>Type de logement</Text>
         <View style={styles.propertyTypeContainer}>
-          {['all', 'apartment', 'house', 'studio'].map(type => (
+          {["all", "apartment", "house", "studio"].map((type) => (
             <TouchableOpacity
               key={type}
               style={[
                 styles.propertyTypeButton,
-                filters.propertyType === type && styles.propertyTypeButtonActive
+                filters.propertyType === type &&
+                  styles.propertyTypeButtonActive,
               ]}
               onPress={() => togglePropertyType(type)}
             >
-              <Text style={[
-                styles.propertyTypeText,
-                filters.propertyType === type && styles.propertyTypeTextActive
-              ]}>
-                {type === 'all' ? 'Tous' : type === 'apartment' ? 'Appartement' : type === 'house' ? 'Maison' : 'Studio'}
+              <Text
+                style={[
+                  styles.propertyTypeText,
+                  filters.propertyType === type &&
+                    styles.propertyTypeTextActive,
+                ]}
+              >
+                {type === "all"
+                  ? "Tous"
+                  : type === "apartment"
+                  ? "Appartement"
+                  : type === "house"
+                  ? "Maison"
+                  : "Studio"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -480,20 +542,26 @@ export default function ListingsScreen({ navigation }) {
 
         <Text style={styles.filterLabel}>Meublé</Text>
         <View style={styles.propertyTypeContainer}>
-          {['all', 'yes', 'no'].map(option => (
+          {["all", "yes", "no"].map((option) => (
             <TouchableOpacity
               key={option}
               style={[
                 styles.propertyTypeButton,
-                filters.furnished === option && styles.propertyTypeButtonActive
+                filters.furnished === option && styles.propertyTypeButtonActive,
               ]}
               onPress={() => toggleService(option)}
             >
-              <Text style={[
-                styles.propertyTypeText,
-                filters.furnished === option && styles.propertyTypeTextActive
-              ]}>
-                {option === 'all' ? 'Tous' : option === 'yes' ? 'Meublé' : 'Non meublé'}
+              <Text
+                style={[
+                  styles.propertyTypeText,
+                  filters.furnished === option && styles.propertyTypeTextActive,
+                ]}
+              >
+                {option === "all"
+                  ? "Tous"
+                  : option === "yes"
+                  ? "Meublé"
+                  : "Non meublé"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -501,27 +569,37 @@ export default function ListingsScreen({ navigation }) {
 
         <Text style={styles.filterLabel}>Services</Text>
         <View style={styles.servicesContainer}>
-          {['wifi', 'washingMachine', 'tv', 'parking', 'elevator'].map(service => (
-            <TouchableOpacity
-              key={service}
-              style={[
-                styles.serviceButton,
-                filters.services.includes(service) && styles.serviceButtonActive
-              ]}
-              onPress={() => toggleService(service)}
-            >
-              <Text style={[
-                styles.serviceText,
-                filters.services.includes(service) && styles.serviceTextActive
-              ]}>
-                {service === 'wifi' ? 'WiFi' :
-                 service === 'washingMachine' ? 'Lave-linge' :
-                 service === 'tv' ? 'TV' :
-                 service === 'parking' ? 'Parking' :
-                 'Ascenseur'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {["wifi", "washingMachine", "tv", "parking", "elevator"].map(
+            (service) => (
+              <TouchableOpacity
+                key={service}
+                style={[
+                  styles.serviceButton,
+                  filters.services.includes(service) &&
+                    styles.serviceButtonActive,
+                ]}
+                onPress={() => toggleService(service)}
+              >
+                <Text
+                  style={[
+                    styles.serviceText,
+                    filters.services.includes(service) &&
+                      styles.serviceTextActive,
+                  ]}
+                >
+                  {service === "wifi"
+                    ? "WiFi"
+                    : service === "washingMachine"
+                    ? "Lave-linge"
+                    : service === "tv"
+                    ? "TV"
+                    : service === "parking"
+                    ? "Parking"
+                    : "Ascenseur"}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
         </View>
 
         <View style={styles.filterActions}>
@@ -563,9 +641,7 @@ export default function ListingsScreen({ navigation }) {
             style={styles.headerButton}
             onPress={() => setShowMap(!showMap)}
           >
-            <Text style={styles.headerButtonText}>
-              {showMap ? "📋" : "🗺️"}
-            </Text>
+            <Text style={styles.headerButtonText}>{showMap ? "📋" : "🗺️"}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -599,26 +675,17 @@ export default function ListingsScreen({ navigation }) {
         <FlatList
           data={filteredListings}
           renderItem={renderItem}
-          keyExtractor={(item) => `listing-${item.id}`}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={10}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucune annonce trouvée</Text>
-            </View>
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListFooterComponent={() =>
             loading && page > 1 ? (
               <ActivityIndicator style={styles.loadingMore} />
             ) : null
-          }
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         />
       )}
@@ -632,17 +699,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+    paddingTop: Platform.OS === "android" ? 25 : 0,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: '#fff',
+    borderBottomColor: "#eee",
+    backgroundColor: "#fff",
     minHeight: 60,
   },
   backButton: {
@@ -651,18 +718,18 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 28,
-    color: '#4C86F9',
+    color: "#4C86F9",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerButton: {
     padding: 10,
@@ -723,7 +790,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   imageContainer: {
-    position: 'relative',
+    position: "relative",
   },
   listingImage: {
     width: "100%",
@@ -781,7 +848,7 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   favoriteButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
   },
@@ -790,17 +857,17 @@ const styles = StyleSheet.create({
   },
   map: {
     width: width,
-    height: '100%',
+    height: "100%",
   },
   filtersContainer: {
     padding: 15,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   filterTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 15,
   },
   filterLabel: {
@@ -808,58 +875,65 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   slider: {
-    width: '100%',
+    width: "100%",
     height: 40,
     marginBottom: 15,
   },
   propertyTypeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginBottom: 15,
   },
   propertyTypeButton: {
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     marginRight: 10,
     marginBottom: 10,
   },
   propertyTypeButtonActive: {
-    backgroundColor: '#4C86F9',
+    backgroundColor: "#4C86F9",
   },
   propertyTypeText: {
-    color: '#666',
+    color: "#666",
   },
   propertyTypeTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   filterActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   filterButton: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginHorizontal: 5,
   },
   resetButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
   },
   applyButton: {
-    backgroundColor: '#4C86F9',
+    backgroundColor: "#4C86F9",
   },
   resetButtonText: {
-    color: '#666',
-    fontWeight: 'bold',
+    color: "#666",
+    fontWeight: "bold",
   },
   applyButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
   },
   loadingMore: {
     paddingVertical: 20,
+  },
+  mapPlaceholder: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    fontSize: 16,
+    color: "#666",
   },
 });

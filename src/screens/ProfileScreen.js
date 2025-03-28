@@ -13,7 +13,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { getAuth, updateProfile } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { useAuth } from "../contexts/AuthContext";
 import {
   doc,
@@ -22,8 +22,7 @@ import {
   setDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../config/firebase";
+import { db } from "../config/firebase";
 import commonStyles from '../styles/commonStyles';
 
 export default function ProfileScreen({ navigation }) {
@@ -68,9 +67,10 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleImagePick = async (imageType) => {
+  const handleImagePick = async (type) => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permission refusée",
@@ -82,91 +82,52 @@ export default function ProfileScreen({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: imageType === "profile" ? [1, 1] : [3, 2],
+        aspect: type === "profile" ? [1, 1] : [3, 2],
         quality: 0.8,
       });
 
       if (!result.canceled) {
         setIsLoading(true);
-        const currentUser = auth.currentUser;
-        
-        if (!currentUser) {
-          throw new Error("Utilisateur non connecté");
+        const formData = new FormData();
+        formData.append("file", {
+          uri: result.assets[0].uri,
+          type: "image/jpeg",
+          name: "upload.jpg",
+        });
+        formData.append(
+          "upload_preset",
+          process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+        );
+
+        const response = await fetch(process.env.EXPO_PUBLIC_CLOUDINARY_URL, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (!data.secure_url) {
+          throw new Error("Échec du téléchargement de l'image");
         }
 
-        try {
-          // Préparer le fichier pour l'upload
-          const filename = result.assets[0].uri.split("/").pop();
-          const match = /\.(\w+)$/.exec(filename);
-          const mimeType = match ? `image/${match[1]}` : "image";
-
-          const formData = new FormData();
-          formData.append("file", {
-            uri: result.assets[0].uri,
-            type: mimeType,
-            name: filename,
+        const userRef = doc(db, "users", auth.currentUser.uid);
+        if (type === "profile") {
+          await updateDoc(userRef, {
+            photoURL: data.secure_url,
+            updatedAt: serverTimestamp(),
           });
-          formData.append("upload_preset", process.env.EXPO_PUBLIC_APP_CLOUDINARY_UPLOAD_PRESET);
-          formData.append("api_key", process.env.EXPO_PUBLIC_APP_CLOUDINARY_API_KEY);
-
-          // Upload vers Cloudinary
-          const response = await fetch(
-            process.env.EXPO_PUBLIC_APP_CLOUDINARY_URL,
-            {
-              method: "POST",
-              body: formData,
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Cloudinary error:", errorData);
-            throw new Error(errorData.error?.message || "Erreur lors du téléchargement de la photo");
-          }
-
-          const data = await response.json();
-          if (!data.secure_url) {
-            throw new Error("URL de la photo non reçue");
-          }
-
-          // Mettre à jour le document utilisateur dans Firestore
-          const userRef = doc(db, "users", currentUser.uid);
-          if (imageType === "profile") {
-            // Mettre à jour la photo de profil dans Firebase Auth
-            await updateProfile(currentUser, {
-              photoURL: data.secure_url
-            });
-
-            // Mettre à jour Firestore
-            await updateDoc(userRef, {
-              photoURL: data.secure_url,
-              updatedAt: serverTimestamp(),
-            });
-            setProfile((prev) => ({ ...prev, photoURL: data.secure_url }));
-            Alert.alert("Succès", "Photo de profil mise à jour avec succès");
-          } else {
-            await updateDoc(userRef, {
-              studentCardURL: data.secure_url,
-              status: "pending",
-              updatedAt: serverTimestamp(),
-            });
-            setProfile((prev) => ({ ...prev, studentCard: data.secure_url }));
-            Alert.alert("Succès", "Carte étudiante mise à jour avec succès");
-          }
-        } catch (uploadError) {
-          console.error('Upload error details:', uploadError);
-          throw new Error(`Erreur lors de l'upload: ${uploadError.message}`);
+          setProfile((prev) => ({ ...prev, photoURL: data.secure_url }));
+        } else {
+          await updateDoc(userRef, {
+            studentCardURL: data.secure_url,
+            status: "pending",
+            updatedAt: serverTimestamp(),
+          });
+          setProfile((prev) => ({ ...prev, studentCard: data.secure_url }));
         }
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert(
-        "Erreur",
-        `Échec du téléchargement de l'image: ${error.message}`
-      );
+      Alert.alert("Erreur", "Échec du téléchargement de l'image");
     } finally {
       setIsLoading(false);
     }
