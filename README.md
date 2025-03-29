@@ -80,6 +80,10 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=votre_measurement_id
 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=votre_clé_maps
 EXPO_PUBLIC_API_URL=votre_url_api
 ```
+```sh
+# Download the .env file from the following link and add it to the root of the project:
+# https://www.dropbox.com/scl/fo/5gq8ahm4lt7orj02xrzup/AKRK6nUOSvbgjJ_RU1VJ0xU?rlkey=jdrwosw6p3x5486e42ul67wii&st=fxkauc9u&dl=0
+```
 
 ## 🚀 Lancement de l'Application
 
